@@ -19,7 +19,7 @@ The PCB Project can be found here: https://easyeda.com/lolerino/epd_esp32
 This repo is made together with this explanation video:(click on it)
 
 
-[![YoutubeVideo](https://img.youtube.com/vi//0.jpg)](https://www.youtube.com/watch?v=)
+[![YoutubeVideo](https://img.youtube.com/vi/1mIrL0A4vOM/0.jpg)](https://www.youtube.com/watch?v=1mIrL0A4vOM)
 
 
 
