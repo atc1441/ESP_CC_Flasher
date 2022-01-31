@@ -2,7 +2,6 @@
 This software brings you the possibility to Read and Write the internal Flash of the Texas Instruments CC 8051 series with an ESP32 using the CC interface.
 
 The following CC Microcontroller are supported right now: CC1110, CC2430, CC2431, CC2510 and CC2511
-(Currently only up to 32kb size!, the bank selection must be added for bigger flash size)
 
 ### You can support my work via PayPal: https://paypal.me/hoverboard1 this keeps projects like this coming.
 
