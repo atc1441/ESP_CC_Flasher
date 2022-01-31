@@ -251,7 +251,7 @@
             break;
             case 2:
                 var chip_name = "Unknown";
-                var connected_id = msg.substring(0,2);
+                var connected_id = msg.substring(0,2).toLowerCase();
                 if(connected_id == "01")
                   chip_name = "CC1110";
                 else if(connected_id == "85")
