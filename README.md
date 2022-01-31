@@ -14,6 +14,8 @@ GND to GND
 Or take a look at this basic schematic: 
 https://github.com/atc1441/ESP_CC_Flasher/blob/main/esp32_cc_flasher_connections.jpg
 
+The PCB Project can be found here: https://easyeda.com/lolerino/epd_esp32
+
 This repo is made together with this explanation video:(click on it)
 
 
