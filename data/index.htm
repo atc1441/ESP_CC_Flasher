@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@100;300;400;500;700;900&display=swap"
+        rel="stylesheet">
+    <title>ESP32 CC Flasher</title>
+    <style type="text/css">
+        * {
+            font-family: 'Roboto', sans-serif;
+            font-weight: 300;
+        }
+        h2, h3, h4, h5, b {
+            font-weight: 700;
+        }
+        h1 {
+            font-weight: 900;
+        }
+        button {
+            font-weight: 400;
+        }
+        label {
+            font-weight: 500;
+        }
+        section {
+            margin: 1.5em;
+            border: 1px solid black;
+            padding: 1em;
+        }
+        section>h2 {
+            background-color: white;
+            margin-top: -1.5em;
+            width: max-content;
+            padding: 0 0.5em;
+            margin-left: 0.5em;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1>CC Flasher</h1>
+    </header>
+    <section>
+        <h2>Infos</h2>
+        <div>
+          Connected chip: <span id="connected_chip_text"></span>
+          <br>
+          Device status: <span id="connected_chip_status"></span>
+          <br><br>
+          Manual: <a href="https://github.com/atc1441" target="_blank">https://github.com/atc1441</a>
+        </div>
+    </section>
+    <section>
+        <h2>Actions</h2>
+        <button onclick='send("cc_init")'>Detect CC</button><br><br>
+        
+        <button onclick='send("erase_cc")'>Erase CC Flash</button><br>
+        Erasing will also unlock the CC
+        <br><br>
+        
+        <label for="file">Flash CC:</label>
+        <input type="text" id="file" value="cc.bin">
+        <button onclick='send("flash_cc?file="+document.getElementById("file").value)'>Flash CC firmware</button><br>
+        Upload and select files via <a href="/edit" target="_blank">/edit</a> , flashing will also erase CC<br><br>
+        
+        <label for="file_dump">Dump flash of CC to:</label>
+        <input type="text" id="file_dump" value="cc_dump.bin">
+        <label for="file_dump_size">Size in bytes:</label>
+        <input type="text" id="file_dump_size" value="32767">
+        <button onclick='send("dump_cc?file="+document.getElementById("file_dump").value+"&size="+document.getElementById("file_dump_size").value)'>Dump CC flash</button>
+        
+        <br><br>
+        
+        <label for="custom_cc_cmd">Custom CC CMD:</label>
+        <input type="text" id="custom_cc_cmd" value="0">
+        <button onclick='send("custom_cc_cmd?custom_cc_cmd="+document.getElementById("custom_cc_cmd").value)'>Custom CMD</button><br>
+        This will execute a custom cmd on Debug level 68 will return ChipID as example, see datasheet for more infos
+        <br><br>
+        <label for="lock_cc_cmd">Lock CMD:</label>
+        <input type="text" id="lock_cc_cmd" value="1e">
+        <button onclick='send("lock_cc_cmd?lock_cmd="+document.getElementById("lock_cc_cmd").value)'>Lock CMD</button><br>
+        1e will disable the Debug interface, see chip datasheet for more infos
+        <br><br>
+        <button onclick='send("cc_enter_dbg")'>Enter Debug Mode</button><button onclick='send("cc_exit_dbg")'>Reset / Run CC</button><br>
+    </section>
+
+    <section>
+        <h2>Status</h2><br>
+        
+        <div>
+          Status: <span id="progress_text">0</span>%
+          <progress id="progress" max="100" value="0"></progress>
+        </div>
+        
+        <div id="answer"></div><br>
+        <div><h2>Content</h2><div id="content"></div></div>
+        <div id="dot"></div><br>
+    </section>
+    <section>
+        <h2>More Infos</h2>
+          Currently the following TI Micros are supported:
+          CC1110, CC2430, CC2431, CC2510 and CC2511<br>
+          More are supported on hardware but not on software level<br>
+        </div>
+    </section>
+
+<script>
+        const answerDiv = document.getElementById('answer');
+        const contentDiv = document.getElementById("content");
+        const progressMarker = document.getElementById("dot");
+        const progressBar = document.getElementById('progress');
+        const progressText = document.getElementById('progress_text');
+
+        
+        async function send(url) {
+            try {
+                const resp = await fetch(url, { method: "POST" })
+                answerDiv.innerHTML = await resp.text()
+            } catch (err) {
+                answerDiv.innerHTML = "ERROR: " + err
+            }
+        }
+        
+        async function send_post(url,data_text) {
+            try {
+        
+        var data = new FormData();
+        data.append('text', data_text);
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', url, true);
+        xhr.onload = function () {
+          answerDiv.innerHTML = this.responseText;
+          console.log(this.responseText);
+        };
+        xhr.send(data);
+            } catch (err) {
+                answerDiv.innerHTML = "ERROR: " + err
+            }
+        }
+        
+
+        async function get(url) {
+            try {
+                const resp = await fetch(url, { method: "GET" })
+                answerDiv.innerHTML = await resp.text()
+            } catch (err) {
+                answerDiv.innerHTML = "ERROR: " + err
+            }
+        }
+
+        let tikTok = false;
+        let lastRxLog = "";
+        async function updateStatus() {
+            try {
+                const resp = await fetch("get_status?received_log="+lastRxLog, { method: "GET" })
+                if (resp.status !== 200) {
+                    throw new Error(`unexpected status code ${resp.status}`);
+                }
+                var return_status = await resp.text();
+                
+                if(return_status == "9999")// Its important to reset all values after the server did reset
+                {
+                      reset_all_values("Reboot detected");
+                }
+                else
+                {
+                console.log(return_status);
+                var new_logs = "";
+                
+                while(1){
+                  var current_offset = return_status.search("\"},");
+                  if(current_offset == -1)
+                  break;
+                  var current_entry = return_status.substring(2,current_offset);
+                  return_status = return_status.substring(current_offset+3);
+                  
+                  var middle = current_entry.search("\":\"");
+                  
+                  if(middle != -1){
+                  var current_nr = current_entry.substring(0,middle);
+                  var current_msg_with_channel = current_entry.substring(middle+3);
+                  var middle_log = current_msg_with_channel.search("\":\"");
+                  var current_channel = parseInt(current_msg_with_channel.substring(0,middle_log));
+                  var current_msg = current_msg_with_channel.substring(middle_log+3);
+                  if(lastRxLog < parseInt(current_nr)){
+                    if(current_channel == 0)
+                    {
+                      var today = new Date();
+                      var time = ("0" + today.getHours()).slice(-2) + ":" + ("0" + today.getMinutes()).slice(-2) + ":" + ("0" + today.getSeconds()).slice(-2) + " : ";
+                      new_logs += time + current_msg + "<br>";
+                    }else{
+                      handle_channel_msg(current_channel,current_msg);
+                    }
+                  }
+                  lastRxLog = current_nr;
+                  }
+                }
+                contentDiv.innerHTML += new_logs;
+                while((contentDiv.innerHTML.match(/<br>/g) || []).length > 10){
+                  // erase lines from top
+                  var logs_br_position = contentDiv.innerHTML.search("<br>");
+                  contentDiv.innerHTML = contentDiv.innerHTML.substring(logs_br_position+4);
+                }
+                }
+                tikTok = !tikTok;
+                progressMarker.innerText = tikTok ? "⚫" : "⚪";
+            } catch (err) {
+                var today = new Date();
+                var time = ("0" + today.getHours()).slice(-2) + ":" + ("0" + today.getMinutes()).slice(-2) + ":" + ("0" + today.getSeconds()).slice(-2) + " : ";
+                contentDiv.innerHTML += time + "<b>ERROR:</b> " + err + "<br>";
+                while((contentDiv.innerHTML.match(/<br>/g) || []).length > 10){
+                  // erase lines from top
+                  var logs_br_position = contentDiv.innerHTML.search("<br>");
+                  contentDiv.innerHTML = contentDiv.innerHTML.substring(logs_br_position+4);
+                }
+                lastRxLog = "";
+                progressMarker.innerText = "🔴";
+            } finally {
+                setTimeout(updateStatus, 900 + Math.floor(Math.random() * 100));
+            }
+        }
+        
+        function reset_all_values(msg)
+        {
+          lastRxLog = "";
+          answerDiv.innerHTML = msg
+          contentDiv.innerHTML = "";
+          setProgress(0);
+        }
+        
+        function setProgress(state)
+        {
+          if(state > 100)
+            state = 100;
+          if(state < 0)
+            state = 0;
+          progressBar.value = parseInt(state);
+          progressText.innerHTML = parseInt(state);
+        }
+        
+        function handle_channel_msg(channel, msg)
+        {
+          switch(channel)
+          {
+            case 1:
+                setProgress(parseInt(msg));
+            break;
+            case 2:
+                var chip_name = "Unknown";
+                var connected_id = msg.substring(0,2);
+                if(connected_id == "01")
+                  chip_name = "CC1110";
+                else if(connected_id == "85")
+                  chip_name = "CC2430";
+                else if(connected_id == "89")
+                  chip_name = "CC2431";
+                else if(connected_id == "81")
+                  chip_name = "CC2510";
+                else if(connected_id == "91")
+                  chip_name = "CC2511";
+                else if(connected_id == "a5")
+                  chip_name = "CC2530";
+                else if(connected_id == "b5")
+                  chip_name = "CC2531";
+                else if(connected_id == "95")
+                  chip_name = "CC2533";
+                else if(connected_id == "8d")
+                  chip_name = "CC2540";
+                else if(connected_id == "41")
+                  chip_name = "CC2541";
+                document.getElementById('connected_chip_text').innerHTML = chip_name;
+            break;
+            case 3:
+                document.getElementById('connected_chip_status').innerHTML = msg;
+            break;
+            default:
+            console.log("unknown channel "+ channel + " Msg: "+msg);
+            break;
+          }
+        }
+
+        updateStatus();
+</script>
+</body>
+
+</html>
