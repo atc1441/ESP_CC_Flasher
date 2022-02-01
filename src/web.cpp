@@ -290,6 +290,7 @@ void init_web()
 
   server.addHandler(new SPIFFSEditor(SPIFFS, http_username, http_password));
 
+  server.on("/get_status", HTTP_ANY, http_get_status);// Put status handler at top to also be handled first as its called the most
   server.on("/custom_cc_cmd", HTTP_ANY, http_cc_custom_cmd);
   server.on("/lock_cc_cmd", HTTP_ANY, http_cc_lock_byte);
   server.on("/flash_cc", HTTP_ANY, http_cc_flash);
@@ -298,7 +299,6 @@ void init_web()
   server.on("/cc_enter_dbg", HTTP_ANY, http_cc_debug_enter);
   server.on("/cc_exit_dbg", HTTP_ANY, http_cc_debug_exit);
   server.on("/erase_cc", HTTP_ANY, http_cc_erase);
-  server.on("/get_status", HTTP_ANY, http_get_status);
 
   server.on("/heap", HTTP_ANY, [](AsyncWebServerRequest *request)
             { request->send(200, "text/plain", String(ESP.getFreeHeap())); });
